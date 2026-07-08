@@ -39,20 +39,20 @@ def call_gemini_vision(api_key, image_bytes, mime_type):
     import base64
     base64_image = base64.b64encode(image_bytes).decode("utf-8")
     
-    payload = {
+        payload = {
         "contents": [{
             "parts": [
-                {"text": "Analyze this image (refrigerator, pantry, or grocery bill receipt). List all unique food ingredient items clearly. Return only a simple comma-separated list of lowercase items (e.g., milk, eggs, chicken). Do not write any sentences, notes, or descriptions."},
+                {"text": "Analyze this image. List all unique food items or groceries as a comma-separated list of lowercase items."},
                 {
                     "inlineData": {
-                        "mimeType": mime_type,
+                        "mimeType": "image/jpeg",  # Forces a stable standard type
                         "data": base64_image
                     }
                 }
             ]
         }]
     }
-    
+
     response = httpx.post(url, headers=headers, json=payload, timeout=30.0)
     if response.status_code == 200:
         res_json = response.json()
