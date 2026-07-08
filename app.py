@@ -30,15 +30,15 @@ if upload_method == "Take a Live Photo":
 else:
     image_file = st.file_uploader("Upload an image asset...", type=["jpg", "jpeg", "png"])
 
-# 4. Global Action Engine
+# 4. Global Action Engine (Vision Processing)
 if image_file is not None:
     if st.button("🤖 Process Photo & Sync Data"):
-        with st.spinner("AI is scanning high-res image pixels via OpenRouter..."):
+        with st.spinner("AI is scanning image pixels via OpenRouter free routing..."):
             img_bytes = image_file.getvalue()
-            b64_img = base64.b64encode(img_bytes).decode("utf-8")
+            # Encode and completely remove trailing newlines to avoid formatting errors
+            b64_img = base64.b64encode(img_bytes).decode("utf-8").replace("\n", "")
             data_url = f"data:image/jpeg;base64,{b64_img}"
             
-            # Direct connection to OpenRouter's global API routing layer
             url = "https://openrouter.ai/api/v1/chat/completions"
             headers = {
                 "Authorization": f"Bearer {st.session_state.api_key}",
@@ -46,7 +46,7 @@ if image_file is not None:
             }
             
             payload = {
-                "model": "google/gemini-2.5-flash",
+                "model": "openrouter/free",  # Routed directly to 100% free models
                 "messages": [
                     {
                         "role": "user",
@@ -66,9 +66,9 @@ if image_file is not None:
                     st.session_state.inventory = list(set(st.session_state.inventory + new_items))
                     st.success("Data synchronization complete! Inventory updated.")
                 else:
-                    st.error(f"Server Error: Status Code {res.status_code}. Verify your sk-or- key structure.")
+                    st.error(f"Server Error: Status Code {res.status_code}. Free limits may be reached, or key is unverified.")
             except Exception as e:
-                st.error("Network timeout processing large data asset. Try again.")
+                st.error("Network timeout processing data asset. Try again.")
 
 # 5. Core Live Dashboard
 st.subheader("📋 Current Kitchen Inventory")
@@ -83,7 +83,7 @@ for item in list(st.session_state.inventory):
     else:
         empty_items.append(item)
 
-# 6. Automatic Purchase Engine
+# 6. Automatic Purchase & Recipe Engine
 st.subheader("🛒 Out of Stock / Pending Purchase List")
 if len(empty_items) > 0:
     st.error("The following items are getting empty in your fridge:")
@@ -91,7 +91,7 @@ if len(empty_items) > 0:
         st.write(f"❌ **{empty_item}** needs to be bought!")
         
     if st.button("💡 Suggest Recipes based only on remaining Stock"):
-        with st.spinner("Calculating custom recipes..."):
+        with st.spinner("Calculating custom recipes via free-tier..."):
             url = "https://openrouter.ai/api/v1/chat/completions"
             headers = {
                 "Authorization": f"Bearer {st.session_state.api_key}",
@@ -99,12 +99,15 @@ if len(empty_items) > 0:
             }
             p_text = f"Suggest 2 quick meals using only: {', '.join(available_items)}. Keep it brief."
             t_payload = {
-                "model": "google/gemini-2.5-flash",
+                "model": "openrouter/free",  # Explicit free tier fallback
                 "messages": [{"role": "user", "content": p_text}]
             }
             try:
                 t_res = httpx.post(url, headers=headers, json=t_payload, timeout=20.0)
-                st.info(t_res.json()["choices"][0]["message"]["content"])
+                if t_res.status_code == 200:
+                    st.info(t_res.json()["choices"][0]["message"]["content"])
+                else:
+                    st.warning(f"Error calling free recipe engine (Status {t_res.status_code}).")
             except Exception:
                 st.warning("Could not reach recipe engine. Try again.")
 else:
