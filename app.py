@@ -3,69 +3,24 @@ import json
 import httpx
 import base64
 
-# 1. Setup Page Configuration
+# 1. Setup Page Layout
 st.set_page_config(page_title="Free Smart Pantry", page_icon="🥦", layout="centered")
-st.title("🥦 Free Smart Pantry & Inventory Agent")
+st.title("🥦 Free Smart Pantry & Inventory Agent (Groq Edition)")
 
-# 2. Free API Key Input
+# 2. Key Validation Matrix
 if "api_key" not in st.session_state:
     st.session_state.api_key = ""
-
-api_key = st.text_input("Enter your free Gemini API Key:", value=st.session_state.api_key, type="password")
-if api_key:
-    st.session_state.api_key = api_key
-else:
-    st.warning("Please enter your Gemini API key to activate the app.")
-    st.stop()
-
-# Initialize global session variables to hold persistent inventory
 if "inventory" not in st.session_state:
     st.session_state.inventory = ["Paneer", "Tomatoes", "Cilantro", "Butter"]
 
-# Helper function to send images directly over a secure API call
-def call_gemini_vision(api_key, image_bytes):
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
-    headers = {"Content-Type": "application/json"}
-    
-    base64_image = base64.b64encode(image_bytes).decode("utf-8")
-    
-    # Perfectly aligned payload block with absolute image type compatibility
-    payload = {
-        "contents": [{
-            "parts": [
-                {"text": "Analyze this image (refrigerator, pantry, or grocery bill receipt). List all unique food ingredient items clearly. Return only a simple comma-separated list of lowercase items (e.g., milk, eggs, chicken). Do not write any sentences, notes, or descriptions."},
-                {
-                    "inlineData": {
-                        "mimeType": "image/jpeg",
-                        "data": base64_image
-                    }
-                }
-            ]
-        }]
-    }
-    
-    try:
-        response = httpx.post(url, headers=headers, json=payload, timeout=30.0)
-        if response.status_code == 200:
-            res_json = response.json()
-            return res_json["candidates"][0]["content"]["parts"][0]["text"]
-    except Exception:
-        return ""
-    return ""
+api_key = st.text_input("Enter your free Groq API Key (starts with gsk_):", value=st.session_state.api_key, type="password")
+if api_key:
+    st.session_state.api_key = api_key
+else:
+    st.warning("Please enter your Groq API key to activate the app.")
+    st.stop()
 
-def call_gemini_text(api_key, prompt):
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
-    headers = {"Content-Type": "application/json"}
-    payload = {"contents": [{"parts": [{"text": prompt}]}]}
-    try:
-        response = httpx.post(url, headers=headers, json=payload, timeout=20.0)
-        if response.status_code == 200:
-            return response.json()["candidates"][0]["content"]["parts"][0]["text"]
-    except Exception:
-        return "Could not generate recipe options."
-    return "Connection error."
-
-# 3. Photo & Bill Capture Interface
+# 3. Media Upload Interface
 st.subheader("📸 Scan Kitchen / Add Bill")
 upload_method = st.radio("Choose upload method:", ["Take a Live Photo", "Upload Receipt / Image File"])
 
@@ -75,36 +30,60 @@ if upload_method == "Take a Live Photo":
 else:
     image_file = st.file_uploader("Upload an image asset...", type=["jpg", "jpeg", "png"])
 
-# 4. Trigger AI Scanning Agent
+# 4. Global Action Engine
 if image_file is not None:
     if st.button("🤖 Process Photo & Sync Data"):
-        with st.spinner("AI is scanning image pixels directly..."):
+        with st.spinner("Groq AI is scanning image pixels..."):
             img_bytes = image_file.getvalue()
-            scanned_text = call_gemini_vision(st.session_state.api_key, img_bytes)
+            b64_img = base64.b64encode(img_bytes).decode("utf-8")
+            data_url = f"data:image/jpeg;base64,{b64_img}"
             
-            if scanned_text:
-                new_items = [item.strip().capitalize() for item in scanned_text.split(",") if item.strip()]
-                st.session_state.inventory = list(set(st.session_state.inventory + new_items))
-                st.success("Data synchronization complete! Inventory updated.")
-            else:
-                st.error("Failed to parse the image. Verify your API key is correct and contains no extra spaces.")
+            # Reconfigured destination directly targeting Groq's official open servers
+            url = "https://api.groq.com/openai/v1/chat/completions"
+            headers = {
+                "Authorization": f"Bearer {st.session_state.api_key}",
+                "Content-Type": "application/json"
+            }
+            
+            payload = {
+                "model": "llama-3.2-11b-vision-preview",
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": "Analyze this image. List all unique food ingredient items or groceries clearly. Return only a simple comma-separated list of lowercase items (e.g., milk, eggs, chicken). Do not write sentences or descriptions."},
+                            {"type": "image_url", "image_url": {"url": data_url}}
+                        ]
+                    }
+                ]
+            }
+            
+            try:
+                res = httpx.post(url, headers=headers, json=payload, timeout=30.0)
+                if res.status_code == 200:
+                    scanned_text = res.json()["choices"][0]["message"]["content"].strip()
+                    new_items = [item.strip().capitalize() for item in scanned_text.split(",") if item.strip()]
+                    st.session_state.inventory = list(set(st.session_state.inventory + new_items))
+                    st.success("Data synchronization complete! Inventory updated.")
+                else:
+                    st.error(f"Groq Server Error: {res.status_code}. Double check your gsk_ API Key.")
+            except Exception as e:
+                st.error("Network connection timeout. Try processing again.")
 
-# 5. Core Inventory Dashboard
+# 5. Core Live Dashboard
 st.subheader("📋 Current Kitchen Inventory")
 st.write("Uncheck items you have fully consumed or are running low on:")
 
-current_items = list(st.session_state.inventory)
 available_items = []
 empty_items = []
 
-for item in current_items:
-    is_stocked = st.checkbox(f"🍏 {item}", value=True, key=f"inv_{item}")
-    if is_stocked:
+for item in list(st.session_state.inventory):
+    if st.checkbox(f"🍏 {item}", value=True, key=f"inv_{item}"):
         available_items.append(item)
     else:
         empty_items.append(item)
 
-# 6. Automate Your Missing / Pending Shopping List
+# 6. Automatic Purchase Engine
 st.subheader("🛒 Out of Stock / Pending Purchase List")
 if len(empty_items) > 0:
     st.error("The following items are getting empty in your fridge:")
@@ -113,8 +92,20 @@ if len(empty_items) > 0:
         
     if st.button("💡 Suggest Recipes based only on remaining Stock"):
         with st.spinner("Calculating custom recipes..."):
-            recipe_prompt = f"Suggest 2 quick meals using only: {', '.join(available_items)}. Keep it brief."
-            recipe_text = call_gemini_text(st.session_state.api_key, recipe_prompt)
-            st.info(recipe_text)
+            url = "https://api.groq.com/openai/v1/chat/completions"
+            headers = {
+                "Authorization": f"Bearer {st.session_state.api_key}",
+                "Content-Type": "application/json"
+            }
+            p_text = f"Suggest 2 quick meals using only: {', '.join(available_items)}. Keep it brief."
+            t_payload = {
+                "model": "llama-3.3-70b-specdec",
+                "messages": [{"role": "user", "content": p_text}]
+            }
+            try:
+                t_res = httpx.post(url, headers=headers, json=t_payload, timeout=20.0)
+                st.info(t_res.json()["choices"][0]["message"]["content"])
+            except Exception:
+                st.warning("Could not reach recipe engine. Try again.")
 else:
     st.success("Your fridge is completely full! Nothing is pending purchase.")
