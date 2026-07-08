@@ -1,15 +1,5 @@
-import os
-import subprocess
-import sys
-
-# Forces Streamlit to install the Google package directly if it misses it
-try:
-    from google import genai
-except ImportError:
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "google-genai"])
-    from google import genai
-
 import streamlit as st
+import google.generativeai as genai
 import PIL.Image
 
 # 1. Setup Page Configuration
@@ -23,7 +13,8 @@ if "api_key" not in st.session_state:
 api_key = st.text_input("Enter your free Gemini API Key:", value=st.session_state.api_key, type="password")
 if api_key:
     st.session_state.api_key = api_key
-    client = genai.Client(api_key=api_key)
+    # Configure the stable library wrapper
+    genai.configure(api_key=api_key)
 else:
     st.warning("Please enter your Gemini API key to activate the app.")
     st.stop()
@@ -55,10 +46,9 @@ if image_file is not None:
             Do not write code, descriptions, or explanations. Just list the items.
             """
             
-            response = client.models.generate_content(
-                model='gemini-2.5-flash',
-                contents=[image, vision_prompt]
-            )
+            # Using the stable model variant for fast vision tasks
+            model = genai.GenerativeModel('gemini-1.5-flash')
+            response = model.generate_content([vision_prompt, image])
             
             scanned_text = response.text.strip()
             new_items = [item.strip().capitalize() for item in scanned_text.split(",") if item.strip()]
@@ -90,8 +80,9 @@ if len(empty_items) > 0:
         
     if st.button("💡 Suggest Recipes based only on remaining Stock"):
         with st.spinner("Calculating custom recipes..."):
+            model = genai.GenerativeModel('gemini-1.5-flash')
             recipe_prompt = f"Suggest 2 quick meals using only: {', '.join(available_items)}. Keep it brief."
-            recipe_resp = client.models.generate_content(model='gemini-2.5-flash', contents=[recipe_prompt])
+            recipe_resp = model.generate_content(recipe_prompt)
             st.info(recipe_resp.text)
 else:
     st.success("Your fridge is completely full! Nothing is pending purchase.")
