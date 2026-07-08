@@ -35,7 +35,7 @@ if image_file is not None:
     if st.button("🤖 Process Photo & Sync Data"):
         with st.spinner("Groq AI is scanning image pixels..."):
             img_bytes = image_file.getvalue()
-            b64_img = base64.b64encode(img_bytes).decode("utf-8")
+            b64_img = base64.b64encode(img_bytes).decode("utf-8").replace("\n", "")
             data_url = f"data:image/jpeg;base64,{b64_img}"
             
             # Reconfigured destination directly targeting Groq's official open servers
