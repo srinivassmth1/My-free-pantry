@@ -5,7 +5,7 @@ import base64
 
 # 1. Setup Page Layout
 st.set_page_config(page_title="Free Smart Pantry", page_icon="🥦", layout="centered")
-st.title("🥦 Free Smart Pantry & Inventory Agent (Groq Edition)")
+st.title("🥦 Free Smart Pantry & Inventory Agent (OpenRouter)")
 
 # 2. Key Validation Matrix
 if "api_key" not in st.session_state:
@@ -13,11 +13,11 @@ if "api_key" not in st.session_state:
 if "inventory" not in st.session_state:
     st.session_state.inventory = ["Paneer", "Tomatoes", "Cilantro", "Butter"]
 
-api_key = st.text_input("Enter your free Groq API Key (starts with gsk_):", value=st.session_state.api_key, type="password")
+api_key = st.text_input("Enter your free OpenRouter API Key (starts with sk-or-):", value=st.session_state.api_key, type="password")
 if api_key:
     st.session_state.api_key = api_key
 else:
-    st.warning("Please enter your Groq API key to activate the app.")
+    st.warning("Please enter your OpenRouter API key to activate the app.")
     st.stop()
 
 # 3. Media Upload Interface
@@ -33,25 +33,25 @@ else:
 # 4. Global Action Engine
 if image_file is not None:
     if st.button("🤖 Process Photo & Sync Data"):
-        with st.spinner("Groq AI is scanning image pixels..."):
+        with st.spinner("AI is scanning high-res image pixels via OpenRouter..."):
             img_bytes = image_file.getvalue()
-            b64_img = base64.b64encode(img_bytes).decode("utf-8").replace("\n", "")
+            b64_img = base64.b64encode(img_bytes).decode("utf-8")
             data_url = f"data:image/jpeg;base64,{b64_img}"
             
-            # Reconfigured destination directly targeting Groq's official open servers
-            url = "https://api.groq.com/openai/v1/chat/completions"
+            # Direct connection to OpenRouter's global API routing layer
+            url = "https://openrouter.ai/api/v1/chat/completions"
             headers = {
                 "Authorization": f"Bearer {st.session_state.api_key}",
                 "Content-Type": "application/json"
             }
             
             payload = {
-                "model": "llama-3.2-11b-vision-preview",
+                "model": "google/gemini-2.5-flash",
                 "messages": [
                     {
                         "role": "user",
                         "content": [
-                            {"type": "text", "text": "Analyze this image. List all unique food ingredient items or groceries clearly. Return only a simple comma-separated list of lowercase items (e.g., milk, eggs, chicken). Do not write sentences or descriptions."},
+                            {"type": "text", "text": "Analyze this image. List all unique food items or grocery names clearly as a simple comma-separated list of items. Do not write text sentences or conversational descriptions."},
                             {"type": "image_url", "image_url": {"url": data_url}}
                         ]
                     }
@@ -59,16 +59,16 @@ if image_file is not None:
             }
             
             try:
-                res = httpx.post(url, headers=headers, json=payload, timeout=30.0)
+                res = httpx.post(url, headers=headers, json=payload, timeout=45.0)
                 if res.status_code == 200:
                     scanned_text = res.json()["choices"][0]["message"]["content"].strip()
                     new_items = [item.strip().capitalize() for item in scanned_text.split(",") if item.strip()]
                     st.session_state.inventory = list(set(st.session_state.inventory + new_items))
                     st.success("Data synchronization complete! Inventory updated.")
                 else:
-                    st.error(f"Groq Server Error: {res.status_code}. Double check your gsk_ API Key.")
+                    st.error(f"Server Error: Status Code {res.status_code}. Verify your sk-or- key structure.")
             except Exception as e:
-                st.error("Network connection timeout. Try processing again.")
+                st.error("Network timeout processing large data asset. Try again.")
 
 # 5. Core Live Dashboard
 st.subheader("📋 Current Kitchen Inventory")
@@ -92,14 +92,14 @@ if len(empty_items) > 0:
         
     if st.button("💡 Suggest Recipes based only on remaining Stock"):
         with st.spinner("Calculating custom recipes..."):
-            url = "https://api.groq.com/openai/v1/chat/completions"
+            url = "https://openrouter.ai/api/v1/chat/completions"
             headers = {
                 "Authorization": f"Bearer {st.session_state.api_key}",
                 "Content-Type": "application/json"
             }
             p_text = f"Suggest 2 quick meals using only: {', '.join(available_items)}. Keep it brief."
             t_payload = {
-                "model": "llama-3.3-70b-specdec",
+                "model": "google/gemini-2.5-flash",
                 "messages": [{"role": "user", "content": p_text}]
             }
             try:
