@@ -58,7 +58,6 @@ if image_file is not None:
             st.session_state.inventory = list(set(st.session_state.inventory + new_items))
             st.success("Data synchronization complete! Inventory updated.")
 
----
 
 # 5. Core Inventory Dashboard
 st.subheader("📋 Current Kitchen Inventory")
@@ -76,7 +75,6 @@ for item in current_items:
     else:
         empty_items.append(item)
 
----
 
 # 6. Automate Your Missing / Pending Shopping List
 st.subheader("🛒 Out of Stock / Pending Purchase List")
