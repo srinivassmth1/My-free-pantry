@@ -1,6 +1,7 @@
 import streamlit as st
 import json
 import httpx
+import base64
 
 # 1. Setup Page Configuration
 st.set_page_config(page_title="Free Smart Pantry", page_icon="🥦", layout="centered")
@@ -21,6 +22,49 @@ else:
 if "inventory" not in st.session_state:
     st.session_state.inventory = ["Paneer", "Tomatoes", "Cilantro", "Butter"]
 
+# Helper function to send images directly over a secure API call
+def call_gemini_vision(api_key, image_bytes):
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
+    headers = {"Content-Type": "application/json"}
+    
+    base64_image = base64.b64encode(image_bytes).decode("utf-8")
+    
+    # Perfectly aligned payload block with absolute image type compatibility
+    payload = {
+        "contents": [{
+            "parts": [
+                {"text": "Analyze this image (refrigerator, pantry, or grocery bill receipt). List all unique food ingredient items clearly. Return only a simple comma-separated list of lowercase items (e.g., milk, eggs, chicken). Do not write any sentences, notes, or descriptions."},
+                {
+                    "inlineData": {
+                        "mimeType": "image/jpeg",
+                        "data": base64_image
+                    }
+                }
+            ]
+        }]
+    }
+    
+    try:
+        response = httpx.post(url, headers=headers, json=payload, timeout=30.0)
+        if response.status_code == 200:
+            res_json = response.json()
+            return res_json["candidates"][0]["content"]["parts"][0]["text"]
+    except Exception:
+        return ""
+    return ""
+
+def call_gemini_text(api_key, prompt):
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
+    headers = {"Content-Type": "application/json"}
+    payload = {"contents": [{"parts": [{"text": prompt}]}]}
+    try:
+        response = httpx.post(url, headers=headers, json=payload, timeout=20.0)
+        if response.status_code == 200:
+            return response.json()["candidates"][0]["content"]["parts"][0]["text"]
+    except Exception:
+        return "Could not generate recipe options."
+    return "Connection error."
+
 # 3. Photo & Bill Capture Interface
 st.subheader("📸 Scan Kitchen / Add Bill")
 upload_method = st.radio("Choose upload method:", ["Take a Live Photo", "Upload Receipt / Image File"])
@@ -31,64 +75,19 @@ if upload_method == "Take a Live Photo":
 else:
     image_file = st.file_uploader("Upload an image asset...", type=["jpg", "jpeg", "png"])
 
-# Helper function to send images directly over a secure API call without local heavy packages
-def call_gemini_vision(api_key, image_bytes, mime_type):
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
-    headers = {"Content-Type": "application/json"}
-    
-    import base64
-    base64_image = base64.b64encode(image_bytes).decode("utf-8")
-    
-        payload = {
-        "contents": [{
-            "parts": [
-                {"text": "Analyze this image. List all unique food items or groceries as a comma-separated list of lowercase items."},
-                {
-                    "inlineData": {
-                        "mimeType": "image/jpeg",  # Forces a stable standard type
-                        "data": base64_image
-                    }
-                }
-            ]
-        }]
-    }
-
-    response = httpx.post(url, headers=headers, json=payload, timeout=30.0)
-    if response.status_code == 200:
-        res_json = response.json()
-        try:
-            return res_json["candidates"][0]["content"]["parts"][0]["text"]
-        except Exception:
-            return ""
-    return ""
-
-def call_gemini_text(api_key, prompt):
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
-    headers = {"Content-Type": "application/json"}
-    payload = {"contents": [{"parts": [{"text": prompt}]}]}
-    response = httpx.post(url, headers=headers, json=payload, timeout=20.0)
-    if response.status_code == 200:
-        try:
-            return response.json()["candidates"][0]["content"]["parts"][0]["text"]
-        except Exception:
-            return "Could not generate recipe options."
-    return "Connection error."
-
 # 4. Trigger AI Scanning Agent
 if image_file is not None:
     if st.button("🤖 Process Photo & Sync Data"):
         with st.spinner("AI is scanning image pixels directly..."):
             img_bytes = image_file.getvalue()
-            m_type = image_file.type if image_file.type else "image/jpeg"
-            
-            scanned_text = call_gemini_vision(st.session_state.api_key, img_bytes, m_type)
+            scanned_text = call_gemini_vision(st.session_state.api_key, img_bytes)
             
             if scanned_text:
                 new_items = [item.strip().capitalize() for item in scanned_text.split(",") if item.strip()]
                 st.session_state.inventory = list(set(st.session_state.inventory + new_items))
                 st.success("Data synchronization complete! Inventory updated.")
             else:
-                st.error("Failed to parse the image. Verify your API key is correct.")
+                st.error("Failed to parse the image. Verify your API key is correct and contains no extra spaces.")
 
 # 5. Core Inventory Dashboard
 st.subheader("📋 Current Kitchen Inventory")
