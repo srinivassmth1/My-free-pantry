@@ -6,7 +6,7 @@ import PIL.Image
 st.set_page_config(page_title="Free Smart Pantry", page_icon="🥦", layout="centered")
 st.title("🥦 Free Smart Pantry & Inventory Agent")
 
-# 2. Free API Key Input (Securely handles your free Gemini Key)
+# 2. Free API Key Input
 if "api_key" not in st.session_state:
     st.session_state.api_key = ""
 
@@ -20,7 +20,7 @@ else:
 
 # Initialize global session variables to hold persistent inventory
 if "inventory" not in st.session_state:
-    st.session_state.inventory = ["Paneer", "Tomatoes", "Cilantro", "Butter"] # Starter baseline
+    st.session_state.inventory = ["Paneer", "Tomatoes", "Cilantro", "Butter"]
 
 # 3. Photo & Bill Capture Interface
 st.subheader("📸 Scan Kitchen / Add Bill")
@@ -50,14 +50,11 @@ if image_file is not None:
                 contents=[image, vision_prompt]
             )
             
-            # Extract new foods and append to live inventory matrix
             scanned_text = response.text.strip()
             new_items = [item.strip().capitalize() for item in scanned_text.split(",") if item.strip()]
             
-            # Merge lists uniquely
             st.session_state.inventory = list(set(st.session_state.inventory + new_items))
             st.success("Data synchronization complete! Inventory updated.")
-
 
 # 5. Core Inventory Dashboard
 st.subheader("📋 Current Kitchen Inventory")
@@ -68,13 +65,11 @@ available_items = []
 empty_items = []
 
 for item in current_items:
-    # Generates a dynamic layout checkbox for every single food product in memory
     is_stocked = st.checkbox(f"🍏 {item}", value=True, key=f"inv_{item}")
     if is_stocked:
         available_items.append(item)
     else:
         empty_items.append(item)
-
 
 # 6. Automate Your Missing / Pending Shopping List
 st.subheader("🛒 Out of Stock / Pending Purchase List")
@@ -83,7 +78,6 @@ if len(empty_items) > 0:
     for empty_item in empty_items:
         st.write(f"❌ **{empty_item}** needs to be bought!")
         
-    # AI Shopping Assistant Suggestion Module
     if st.button("💡 Suggest Recipes based only on remaining Stock"):
         with st.spinner("Calculating custom recipes..."):
             recipe_prompt = f"Suggest 2 quick meals using only: {', '.join(available_items)}. Keep it brief."
