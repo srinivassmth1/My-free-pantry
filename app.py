@@ -1,5 +1,15 @@
+import os
+import subprocess
+import sys
+
+# Forces Streamlit to install the Google package directly if it misses it
+try:
+    from google import genai
+except ImportError:
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "google-genai"])
+    from google import genai
+
 import streamlit as st
-from google import genai
 import PIL.Image
 
 # 1. Setup Page Configuration
